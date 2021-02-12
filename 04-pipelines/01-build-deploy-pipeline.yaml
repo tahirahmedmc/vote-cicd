@@ -2,6 +2,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: Pipeline
 metadata:
   name: build-and-deploy
+  namespace: vote
 spec:
   resources:
   - name: my-source-repo
@@ -12,31 +13,25 @@ spec:
   - name: deployment-name
     description: name of the deployment to be patched
   tasks:
-  - name: build-image
-    taskRef:
-      name: buildah-v0-8-0
-      kind: ClusterTask
-    resources:
-      inputs:
-      - name: source
-        resource: my-source-repo
-      outputs:
-      - name: image
-        resource: my-image-resource
-    params:
-    - name: TLSVERIFY
-      value: "false"
   - name: create-upate-deployment
     taskRef:
-      name: oc-apply-deployment
+      name: build-docker-image-task
     resources:
       inputs:
       - name: k8s-yamls-repo
         resource: my-source-repo
       - name: new-image
         resource: my-image-resource
+      outputs:
+        - name: builtImage
+          resource: my-image-resource
     params:
     - name: deployment-name
       value: $(params.deployment-name)
-    runAfter:
-    - build-image
+    - name: pathToDockerFile
+      value: Dockerfile
+    - name: pathToContext
+      value: /workspace/k8s-yamls-repo
+    - name: destination
+      value: index.docker.io/tahirahmed521/vote-api:latest
+

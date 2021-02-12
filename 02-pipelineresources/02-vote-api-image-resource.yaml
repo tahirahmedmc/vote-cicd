@@ -2,8 +2,9 @@ apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: vote-api-image
+  namespace: vote
 spec:
   type: image
   params:
   - name: url
-    value: image-registry.openshift-image-registry.svc:5000/vote-cicd/vote-api:latest
+    value: index.docker.io/tahirahmed521/vote-api:latest

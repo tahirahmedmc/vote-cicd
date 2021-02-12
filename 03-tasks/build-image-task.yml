@@ -1,0 +1,77 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: build-docker-image-task
+  namespace: vote
+spec:
+  inputs:
+    resources:
+      - name: k8s-yamls-repo
+        type: git
+      - name: new-image
+        type: image
+    params:
+      - name: destination
+        type: string
+        default: test
+      - name: manifest-dir
+        description: The directory in source that contains yaml manifests
+        type: string
+        default: "k8s"
+      - name: deployment-name
+        description: The name of the deployment patch the image
+        type: string
+      - name: pathToDockerFile
+        type: string
+        description: The path to the dockerfile to build
+        default: /workspace/docker-source/Dockerfile
+      - name: pathToContext
+        type: string
+        description:
+          The build context used by Kaniko
+          (https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts)
+        default: /workspace/k8s-yamls-repo
+  outputs:
+    resources:
+      - name: builtImage
+        type: image
+  steps:
+    - name: build-and-push
+      image: gcr.io/kaniko-project/executor:v0.15.0
+      # specifying DOCKER_CONFIG is required to allow kaniko to detect docker credential
+      env:
+        - name: "DOCKER_CONFIG"
+          value: "/tekton/home/.docker/"
+      command:
+        - /kaniko/executor
+      args:
+        - --dockerfile=$(inputs.params.pathToDockerFile)
+        - --destination=$(inputs.resources.new-image.url)
+        - --context=$(inputs.params.pathToContext)
+    - name: apply
+      image: quay.io/openshift/origin-cli:latest
+      workingdir: /workspace/k8s-yamls-repo
+      command: [ "/bin/bash", "-c" ]
+      args:
+        - |-
+          echo Applying manifests in $(inputs.params.manifest-dir) directory
+          kubectl apply -f $(inputs.params.manifest-dir)
+          echo -----------------------------------
+    - name: patch
+      image: quay.io/openshift/origin-cli:latest
+      command: [ "/bin/bash", "-c" ]
+      args:
+        - |-
+          kubectl patch deployment $(inputs.params.deployment-name) \
+             --patch='{
+                       "spec":{
+                               "template":{
+                                           "spec":{
+                                                   "containers":[{
+                                                                  "name": "$(inputs.params.deployment-name)",
+                                                                  "image":"$(inputs.resources.new-image.url)"
+                                                                 }]
+                                                  }
+                                          }
+                              }
+                      }'

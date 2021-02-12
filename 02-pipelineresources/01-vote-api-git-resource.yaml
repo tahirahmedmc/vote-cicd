@@ -2,8 +2,9 @@ apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: vote-api-repo
+  namespace: vote
 spec:
   type: git
   params:
   - name: url
-    value: https://github.com/nikhil-thomas/vote-api.git
+    value: https://github.com/tahirahmedmc/vote-api.git
